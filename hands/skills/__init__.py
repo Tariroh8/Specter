@@ -31,6 +31,15 @@ def load_skills():
             except Exception as e:
                 print(f"[-] Failed to load skill from {filename}: {e}")
 
+    # Discover and register tools exposed by configured MCP servers. Isolated in
+    # try/except so a missing 'mcp' package or a misconfigured server can never
+    # break the core file-based skills.
+    try:
+        from hands.skills.mcp_adapter import load_mcp_skills
+        load_mcp_skills(SKILL_REGISTRY)
+    except Exception as e:
+        print(f"[-] MCP: skill discovery skipped: {e}")
+
 def get_skill(name: str) -> Type[BaseSkill]:
     """Retrieves a skill class by its name."""
     return SKILL_REGISTRY.get(name)

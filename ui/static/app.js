@@ -57,6 +57,26 @@ document.addEventListener("DOMContentLoaded", () => {
         loadSettings();
     });
 
+    // SVG Core Node Navigation
+    const svgNodes = {
+        "node-timeline": { nav: navTimeline, view: viewTimeline, fetch: fetchEvents },
+        "node-chats": { nav: navChats, view: viewChats, fetch: fetchChats },
+        "node-tasks": { nav: navTasks, view: viewTasks, fetch: fetchTasks },
+        "node-skills": { nav: navSkills, view: viewSkills, fetch: fetchSkills },
+        "node-settings": { nav: navSettings, view: viewSettings, fetch: loadSettings }
+    };
+
+    Object.keys(svgNodes).forEach(nodeId => {
+        const nodeEl = document.getElementById(nodeId);
+        if (nodeEl) {
+            nodeEl.addEventListener("click", () => {
+                const node = svgNodes[nodeId];
+                switchView(node.nav, node.view);
+                node.fetch();
+            });
+        }
+    });
+
     // Dashboard Stats Logic
     async function fetchStats() {
         if (!viewDashboard.classList.contains("active")) return;
@@ -202,10 +222,14 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    let activeChatContent = "";
+    const modalSpeakBtn = document.getElementById("modal-speak-btn");
+
     function openChatModal(index) {
         const chat = loadedChats[index];
         if (!chat) return;
         
+        activeChatContent = chat.content;
         modalChatTopic.textContent = chat.topic;
         modalChatBody.innerHTML = formatChatTranscript(chat.content);
         chatModal.style.display = "flex";
@@ -213,11 +237,58 @@ document.addEventListener("DOMContentLoaded", () => {
     
     modalCloseBtn.addEventListener("click", () => {
         chatModal.style.display = "none";
+        activeChatContent = "";
     });
     
     chatModal.addEventListener("click", (e) => {
-        if (e.target === chatModal) chatModal.style.display = "none";
+        if (e.target === chatModal) {
+            chatModal.style.display = "none";
+            activeChatContent = "";
+        }
     });
+
+    if (modalSpeakBtn) {
+        modalSpeakBtn.addEventListener("click", async () => {
+            if (!activeChatContent) return;
+
+            const originalHtml = modalSpeakBtn.innerHTML;
+            modalSpeakBtn.disabled = true;
+            modalSpeakBtn.innerHTML = "⏳ Reading...";
+
+            // Clean chat transcript markers into conversational sentences
+            const lines = activeChatContent.split('\n');
+            let speakableText = [];
+            lines.forEach(line => {
+                const trimmed = line.trim();
+                if (trimmed === '[USER]') {
+                    speakableText.push("User said:");
+                } else if (trimmed === '[AI]') {
+                    speakableText.push("A.I. responded:");
+                } else if (trimmed) {
+                    // Remove code blocks and backticks
+                    const cleanLine = trimmed.replace(/```[a-z]*|```|`/gi, '').trim();
+                    if (cleanLine) {
+                        speakableText.push(cleanLine);
+                    }
+                }
+            });
+
+            const textToSpeak = speakableText.join('. ');
+
+            try {
+                await fetch('/api/skills/speak/run', {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text: textToSpeak })
+                });
+            } catch (err) {
+                console.error("Failed to read chat:", err);
+            } finally {
+                modalSpeakBtn.disabled = false;
+                modalSpeakBtn.innerHTML = originalHtml;
+            }
+        });
+    }
 
     function formatChatTranscript(text) {
         const lines = text.split('\n');
@@ -311,76 +382,66 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    // Skills Logic
+    // ==========================================================================
+    // INTERACTIVE TOOL CENTER LOGIC
+    // ==========================================================================
     const skillsContainer = document.getElementById("skills-container");
+    let loadedSkills = {};
+    let activeToolCategory = "all";
+
+    // Setup Category Filter Buttons
+    const filterBtns = document.querySelectorAll(".filter-btn");
+    filterBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            filterBtns.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            activeToolCategory = btn.getAttribute("data-category");
+            renderSkills(loadedSkills);
+        });
+    });
+
+    const SKILL_ICONS = {
+        social_post: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>`,
+        social_comment: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+        social_login: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+        local_server_tunneler: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>`,
+        scaffold_project: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polygon points="12 11 12 17 17 14"/></svg>`,
+        deploy_django_pythonanywhere: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a6 6 0 0 0 0-12z"/></svg>`,
+        system_control: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>`,
+        youtube_play: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>`,
+        web_search: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+        fallback: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`
+    };
+
+    const SKILL_CATEGORIES = {
+        social_login: "social",
+        social_post: "social",
+        social_comment: "social",
+        local_server_tunneler: "dev",
+        scaffold_project: "dev",
+        deploy_django_pythonanywhere: "dev",
+        delegate_to_antigravity: "dev",
+        system_control: "utility",
+        youtube_play: "utility",
+        web_search: "utility",
+        chatgpt_browser: "utility",
+        restart_specter: "utility"
+    };
 
     async function fetchSkills() {
         if (!viewSkills.classList.contains("active")) return;
         try {
             const res = await fetch("/api/skills");
-            const skills = await res.json();
-            renderSkills(skills);
+            loadedSkills = await res.json();
+            renderSkills(loadedSkills);
         } catch (err) {
             console.error("Failed to fetch skills:", err);
         }
     }
 
-    function renderSkills(skills) {
-        skillsContainer.innerHTML = "";
-        const skillNames = Object.keys(skills);
-        if (skillNames.length === 0) {
-            skillsContainer.innerHTML = "<p style='color: var(--text-muted);'>No skills loaded.</p>";
-            return;
-        }
-
-        skillNames.forEach(name => {
-            const meta = skills[name];
-            const card = document.createElement("div");
-            card.className = "skill-card glass-panel";
-            card.style.padding = "15px";
-            card.style.marginBottom = "15px";
-
-            let paramsHtml = "";
-            if (meta.parameters && Object.keys(meta.parameters).length > 0) {
-                Object.keys(meta.parameters).forEach(param => {
-                    paramsHtml += `
-                        <div class="form-group" style="margin-bottom: 8px;">
-                            <label style="font-size: 0.8rem; color: var(--text-muted);">${param} - ${meta.parameters[param]}</label>
-                            <input type="text" id="param-${name}-${param}" placeholder="Value for ${param}" style="width: 100%; padding: 6px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px;">
-                        </div>
-                    `;
-                });
-            }
-
-            card.innerHTML = `
-                <h3 style="margin: 0 0 5px 0; color: var(--accent-blue);">${name}</h3>
-                <p style="margin: 0 0 15px 0; font-size: 0.9rem; color: var(--text-muted);">${escapeHTML(meta.description)}</p>
-                <div class="skill-params">
-                    ${paramsHtml}
-                </div>
-                <button class="btn-primary" onclick="runSkill('${name}', ${JSON.stringify(Object.keys(meta.parameters || {}))})" style="margin-top: 10px;">Execute Skill</button>
-                <div id="skill-result-${name}" style="margin-top: 10px; font-size: 0.85rem;"></div>
-            `;
-            skillsContainer.appendChild(card);
-        });
-    }
-
-    window.runSkill = async function(skillName, paramsList) {
-        const payload = {};
-        let allGood = true;
-        
-        paramsList.forEach(param => {
-            const val = document.getElementById(`param-${skillName}-${param}`).value.trim();
-            if (val) {
-                payload[param] = val;
-            } else {
-                // simple check for requiredness could go here, for now we just pass what's there
-            }
-        });
-
-        const resultDiv = document.getElementById(`skill-result-${skillName}`);
-        resultDiv.innerHTML = "<span style='color: var(--accent-blue);'>Executing...</span>";
-
+    async function runSkillAPI(skillName, payload, resultDiv) {
+        resultDiv.className = "tool-result info";
+        resultDiv.innerHTML = "⏳ Processing task. Please wait...";
         try {
             const res = await fetch(`/api/skills/${skillName}/run`, {
                 method: "POST",
@@ -388,17 +449,437 @@ document.addEventListener("DOMContentLoaded", () => {
                 body: JSON.stringify(payload)
             });
             const data = await res.json();
-            
             if (data.success) {
-                resultDiv.innerHTML = `<span style="color: #2ecc71;">✅ ${escapeHTML(data.message)}</span>`;
+                resultDiv.className = "tool-result success";
+                resultDiv.innerHTML = `✅ ${escapeHTML(data.message)}`;
             } else {
-                resultDiv.innerHTML = `<span style="color: #e74c3c;">❌ ${escapeHTML(data.message || 'Execution failed')}</span>`;
+                resultDiv.className = "tool-result error";
+                resultDiv.innerHTML = `❌ ${escapeHTML(data.message || 'Execution failed')}`;
             }
         } catch (err) {
-            console.error("Failed to execute skill:", err);
-            resultDiv.innerHTML = `<span style="color: #e74c3c;">❌ Network Error</span>`;
+            resultDiv.className = "tool-result error";
+            resultDiv.innerHTML = `❌ Connection Error`;
         }
-    };
+    }
+
+    function renderSkills(skills) {
+        skillsContainer.innerHTML = "";
+        const skillNames = Object.keys(skills);
+        
+        if (skillNames.length === 0) {
+            skillsContainer.innerHTML = "<p style='color: var(--text-muted);'>No skills loaded.</p>";
+            return;
+        }
+
+        // Filter skills
+        const filteredNames = skillNames.filter(name => {
+            const cat = SKILL_CATEGORIES[name] || "utility";
+            return activeToolCategory === "all" || cat === activeToolCategory;
+        });
+
+        if (filteredNames.length === 0) {
+            skillsContainer.innerHTML = "<p style='color: var(--text-muted);'>No tools found in this category.</p>";
+            return;
+        }
+
+        filteredNames.forEach(name => {
+            const meta = skills[name];
+            const cat = SKILL_CATEGORIES[name] || "utility";
+            
+            const card = document.createElement("div");
+            card.className = `tool-card cat-${cat}`;
+
+            const iconSvg = SKILL_ICONS[name] || SKILL_ICONS.fallback;
+
+            if (name === "social_post") {
+                card.innerHTML = `
+                    <div class="tool-header">
+                        <div class="tool-icon-wrapper">${iconSvg}</div>
+                        <div class="tool-title-desc">
+                            <span class="tool-title">Publish Content</span>
+                            <span class="tool-desc">${escapeHTML(meta.description)}</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <div class="tool-field">
+                            <label>Platform</label>
+                            <div class="platform-segmented-control">
+                                <button class="platform-seg-btn active" data-val="facebook">Facebook</button>
+                                <button class="platform-seg-btn" data-val="instagram">Instagram</button>
+                                <button class="platform-seg-btn" data-val="tiktok">TikTok</button>
+                            </div>
+                        </div>
+                        <div class="tool-field">
+                            <label>Post Text / Caption</label>
+                            <textarea class="tool-input" id="post-text" rows="2" placeholder="What's on your mind?"></textarea>
+                        </div>
+                        <div class="tool-field">
+                            <label>Media File Path (Image or Video)</label>
+                            <input type="text" class="tool-input" id="post-media" placeholder="C:\\path\\to\\file.jpg">
+                        </div>
+                    </div>
+                    <div class="tool-footer">
+                        <button class="btn-primary btn-run">Publish Post</button>
+                        <div class="tool-result"></div>
+                    </div>
+                `;
+                setupSegmentedControl(card);
+                const runBtn = card.querySelector(".btn-run");
+                const resultDiv = card.querySelector(".tool-result");
+                runBtn.addEventListener("click", () => {
+                    const platform = card.querySelector(".platform-seg-btn.active").getAttribute("data-val");
+                    const text = card.querySelector("#post-text").value.trim();
+                    const media_path = card.querySelector("#post-media").value.trim();
+                    runSkillAPI("social_post", { platform, text, media_path }, resultDiv);
+                });
+
+            } else if (name === "social_comment") {
+                card.innerHTML = `
+                    <div class="tool-header">
+                        <div class="tool-icon-wrapper">${iconSvg}</div>
+                        <div class="tool-title-desc">
+                            <span class="tool-title">Post Comment</span>
+                            <span class="tool-desc">${escapeHTML(meta.description)}</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <div class="tool-field">
+                            <label>Platform</label>
+                            <div class="platform-segmented-control">
+                                <button class="platform-seg-btn active" data-val="facebook">Facebook</button>
+                                <button class="platform-seg-btn" data-val="instagram">Instagram</button>
+                                <button class="platform-seg-btn" data-val="tiktok">TikTok</button>
+                            </div>
+                        </div>
+                        <div class="tool-field">
+                            <label>Post or Video URL</label>
+                            <input type="text" class="tool-input" id="comment-url" placeholder="https://...">
+                        </div>
+                        <div class="tool-field">
+                            <label>Comment Message</label>
+                            <input type="text" class="tool-input" id="comment-text" placeholder="Write your comment...">
+                        </div>
+                    </div>
+                    <div class="tool-footer">
+                        <button class="btn-primary btn-run">Post Comment</button>
+                        <div class="tool-result"></div>
+                    </div>
+                `;
+                setupSegmentedControl(card);
+                const runBtn = card.querySelector(".btn-run");
+                const resultDiv = card.querySelector(".tool-result");
+                runBtn.addEventListener("click", () => {
+                    const platform = card.querySelector(".platform-seg-btn.active").getAttribute("data-val");
+                    const url = card.querySelector("#comment-url").value.trim();
+                    const text = card.querySelector("#comment-text").value.trim();
+                    runSkillAPI("social_comment", { platform, url, text }, resultDiv);
+                });
+
+            } else if (name === "social_login") {
+                card.innerHTML = `
+                    <div class="tool-header">
+                        <div class="tool-icon-wrapper">${iconSvg}</div>
+                        <div class="tool-title-desc">
+                            <span class="tool-title">Social Authentication</span>
+                            <span class="tool-desc">${escapeHTML(meta.description)}</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <div class="tool-field">
+                            <label>Select Platform</label>
+                            <div class="platform-segmented-control">
+                                <button class="platform-seg-btn active" data-val="facebook">Facebook</button>
+                                <button class="platform-seg-btn" data-val="instagram">Instagram</button>
+                                <button class="platform-seg-btn" data-val="tiktok">TikTok</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tool-footer">
+                        <button class="btn-primary btn-run">Launch Interactive Login</button>
+                        <div class="tool-result"></div>
+                    </div>
+                `;
+                setupSegmentedControl(card);
+                const runBtn = card.querySelector(".btn-run");
+                const resultDiv = card.querySelector(".tool-result");
+                runBtn.addEventListener("click", () => {
+                    const platform = card.querySelector(".platform-seg-btn.active").getAttribute("data-val");
+                    runSkillAPI("social_login", { platform }, resultDiv);
+                });
+
+            } else if (name === "local_server_tunneler") {
+                card.innerHTML = `
+                    <div class="tool-header">
+                        <div class="tool-icon-wrapper">${iconSvg}</div>
+                        <div class="tool-title-desc">
+                            <span class="tool-title">Local Port Tunneler</span>
+                            <span class="tool-desc">${escapeHTML(meta.description)}</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <div class="tool-field">
+                            <label>Action</label>
+                            <div class="platform-segmented-control">
+                                <button class="platform-seg-btn active" data-val="start">Start Tunnel</button>
+                                <button class="platform-seg-btn" data-val="stop">Stop Tunnel</button>
+                            </div>
+                        </div>
+                        <div class="tool-field">
+                            <label>Port</label>
+                            <input type="number" class="tool-input" id="tunnel-port" value="5000">
+                        </div>
+                        <div class="tool-field">
+                            <label>Subdomain (Optional)</label>
+                            <input type="text" class="tool-input" id="tunnel-subdomain" placeholder="my-custom-subdomain">
+                        </div>
+                    </div>
+                    <div class="tool-footer">
+                        <button class="btn-primary btn-run">Apply Tunnel</button>
+                        <div class="tool-result"></div>
+                    </div>
+                `;
+                setupSegmentedControl(card);
+                const runBtn = card.querySelector(".btn-run");
+                const resultDiv = card.querySelector(".tool-result");
+                runBtn.addEventListener("click", () => {
+                    const action = card.querySelector(".platform-seg-btn.active").getAttribute("data-val");
+                    const port = card.querySelector("#tunnel-port").value.trim();
+                    const subdomain = card.querySelector("#tunnel-subdomain").value.trim();
+                    runSkillAPI("local_server_tunneler", { action, port, subdomain }, resultDiv);
+                });
+
+            } else if (name === "system_control") {
+                card.innerHTML = `
+                    <div class="tool-header">
+                        <div class="tool-icon-wrapper">${iconSvg}</div>
+                        <div class="tool-title-desc">
+                            <span class="tool-title">System Power Control</span>
+                            <span class="tool-desc">${escapeHTML(meta.description)}</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Power Actions</label>
+                        <div class="power-btn-grid">
+                            <button class="power-action-btn action-sleep" data-action="sleep">
+                                <svg viewBox="0 0 24 24" stroke="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                                Sleep
+                            </button>
+                            <button class="power-action-btn action-restart" data-action="restart">
+                                <svg viewBox="0 0 24 24" stroke="currentColor"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                                Restart
+                            </button>
+                            <button class="power-action-btn action-shutdown" data-action="shutdown">
+                                <svg viewBox="0 0 24 24" stroke="currentColor"><path d="M18.36 6.64a9 9 0 1 1-12.73 0 M12 2v10"/></svg>
+                                Shutdown
+                            </button>
+                        </div>
+                    </div>
+                    <div class="tool-footer">
+                        <div class="tool-result"></div>
+                    </div>
+                `;
+                const resultDiv = card.querySelector(".tool-result");
+                card.querySelectorAll(".power-action-btn").forEach(btn => {
+                    btn.addEventListener("click", () => {
+                        const act = btn.getAttribute("data-action");
+                        if (confirm(`Are you sure you want to trigger OS ${act.toUpperCase()}?`)) {
+                            runSkillAPI("system_control", { action: act }, resultDiv);
+                        }
+                    });
+                });
+
+            } else if (name === "youtube_play") {
+                card.innerHTML = `
+                    <div class="tool-header">
+                        <div class="tool-icon-wrapper">${iconSvg}</div>
+                        <div class="tool-title-desc">
+                            <span class="tool-title">YouTube Player</span>
+                            <span class="tool-desc">${escapeHTML(meta.description)}</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <div class="tool-field">
+                            <label>Video Search Query</label>
+                            <input type="text" class="tool-input" id="yt-query" placeholder="Song name or video topic...">
+                        </div>
+                    </div>
+                    <div class="tool-footer">
+                        <button class="btn-primary btn-run">Play Video</button>
+                        <div class="tool-result"></div>
+                    </div>
+                `;
+                const runBtn = card.querySelector(".btn-run");
+                const resultDiv = card.querySelector(".tool-result");
+                runBtn.addEventListener("click", () => {
+                    const query = card.querySelector("#yt-query").value.trim();
+                    runSkillAPI("youtube_play", { query }, resultDiv);
+                });
+
+            } else if (name === "web_search") {
+                card.innerHTML = `
+                    <div class="tool-header">
+                        <div class="tool-icon-wrapper">${iconSvg}</div>
+                        <div class="tool-title-desc">
+                            <span class="tool-title">Web Search</span>
+                            <span class="tool-desc">${escapeHTML(meta.description)}</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <div class="tool-field">
+                            <label>Google Search Query</label>
+                            <input type="text" class="tool-input" id="search-query" placeholder="What do you want to find?">
+                        </div>
+                    </div>
+                    <div class="tool-footer">
+                        <button class="btn-primary btn-run">Perform Search</button>
+                        <div class="tool-result"></div>
+                    </div>
+                `;
+                const runBtn = card.querySelector(".btn-run");
+                const resultDiv = card.querySelector(".tool-result");
+                runBtn.addEventListener("click", () => {
+                    const query = card.querySelector("#search-query").value.trim();
+                    runSkillAPI("web_search", { query }, resultDiv);
+                });
+
+            } else if (name === "scaffold_project") {
+                card.innerHTML = `
+                    <div class="tool-header">
+                        <div class="tool-icon-wrapper">${iconSvg}</div>
+                        <div class="tool-title-desc">
+                            <span class="tool-title">Scaffold Project</span>
+                            <span class="tool-desc">${escapeHTML(meta.description)}</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <div class="tool-field">
+                            <label>Project Name</label>
+                            <input type="text" class="tool-input" id="scaffold-name" placeholder="my_new_app">
+                        </div>
+                        <div class="tool-field">
+                            <label>Project Type</label>
+                            <select class="tool-input" id="scaffold-type">
+                                <option value="python">Python Project</option>
+                                <option value="node">Node.js Project</option>
+                                <option value="react">React Project</option>
+                            </select>
+                        </div>
+                        <div class="tool-field">
+                            <label>Absolute Path (Optional)</label>
+                            <input type="text" class="tool-input" id="scaffold-path" placeholder="Defaults to current folder">
+                        </div>
+                    </div>
+                    <div class="tool-footer">
+                        <button class="btn-primary btn-run">Generate Project</button>
+                        <div class="tool-result"></div>
+                    </div>
+                `;
+                const runBtn = card.querySelector(".btn-run");
+                const resultDiv = card.querySelector(".tool-result");
+                runBtn.addEventListener("click", () => {
+                    const project_name = card.querySelector("#scaffold-name").value.trim();
+                    const project_type = card.querySelector("#scaffold-type").value.trim();
+                    const path = card.querySelector("#scaffold-path").value.trim();
+                    runSkillAPI("scaffold_project", { project_name, project_type, path }, resultDiv);
+                });
+
+            } else if (name === "deploy_django_pythonanywhere") {
+                card.innerHTML = `
+                    <div class="tool-header">
+                        <div class="tool-icon-wrapper">${iconSvg}</div>
+                        <div class="tool-title-desc">
+                            <span class="tool-title">Deploy to PythonAnywhere</span>
+                            <span class="tool-desc">${escapeHTML(meta.description)}</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        <div class="tool-field">
+                            <label>PA Username</label>
+                            <input type="text" class="tool-input" id="pa-username" placeholder="your_username">
+                        </div>
+                        <div class="tool-field">
+                            <label>PA API Token</label>
+                            <input type="password" class="tool-input" id="pa-token" placeholder="API key">
+                        </div>
+                        <div class="tool-field">
+                            <label>GitHub Repository URL</label>
+                            <input type="text" class="tool-input" id="pa-github" placeholder="https://github.com/...">
+                        </div>
+                        <div class="tool-field">
+                            <label>Custom Subdomain (Optional)</label>
+                            <input type="text" class="tool-input" id="pa-domain" placeholder="username.pythonanywhere.com">
+                        </div>
+                    </div>
+                    <div class="tool-footer">
+                        <button class="btn-primary btn-run">Deploy Django App</button>
+                        <div class="tool-result"></div>
+                    </div>
+                `;
+                const runBtn = card.querySelector(".btn-run");
+                const resultDiv = card.querySelector(".tool-result");
+                runBtn.addEventListener("click", () => {
+                    const username = card.querySelector("#pa-username").value.trim();
+                    const api_token = card.querySelector("#pa-token").value.trim();
+                    const github_url = card.querySelector("#pa-github").value.trim();
+                    const domain = card.querySelector("#pa-domain").value.trim();
+                    runSkillAPI("deploy_django_pythonanywhere", { username, api_token, github_url, domain }, resultDiv);
+                });
+
+            } else {
+                // Fallback Dynamic Render Card
+                let paramsHtml = "";
+                const paramKeys = Object.keys(meta.parameters || {});
+                paramKeys.forEach(param => {
+                    paramsHtml += `
+                        <div class="tool-field">
+                            <label>${param}</label>
+                            <input type="text" class="tool-input param-input" data-param="${param}" placeholder="${escapeHTML(meta.parameters[param])}">
+                        </div>
+                    `;
+                });
+
+                card.innerHTML = `
+                    <div class="tool-header">
+                        <div class="tool-icon-wrapper">${SKILL_ICONS.fallback}</div>
+                        <div class="tool-title-desc">
+                            <span class="tool-title">${escapeHTML(name)}</span>
+                            <span class="tool-desc">${escapeHTML(meta.description)}</span>
+                        </div>
+                    </div>
+                    <div class="tool-body">
+                        ${paramsHtml}
+                    </div>
+                    <div class="tool-footer">
+                        <button class="btn-primary btn-run">Run Tool</button>
+                        <div class="tool-result"></div>
+                    </div>
+                `;
+                const runBtn = card.querySelector(".btn-run");
+                const resultDiv = card.querySelector(".tool-result");
+                runBtn.addEventListener("click", () => {
+                    const payload = {};
+                    card.querySelectorAll(".param-input").forEach(inp => {
+                        const param = inp.getAttribute("data-param");
+                        const val = inp.value.trim();
+                        if (val) payload[param] = val;
+                    });
+                    runSkillAPI(name, payload, resultDiv);
+                });
+            }
+
+            skillsContainer.appendChild(card);
+        });
+    }
+
+    function setupSegmentedControl(card) {
+        const segBtns = card.querySelectorAll(".platform-seg-btn");
+        segBtns.forEach(btn => {
+            btn.addEventListener("click", () => {
+                segBtns.forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+            });
+        });
+    }
 
     // Settings Logic
     const settingsForm = document.getElementById("settings-form");

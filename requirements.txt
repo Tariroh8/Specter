@@ -9,6 +9,8 @@ audioop-lts
 pyautogui
 opencv-python
 requests
+pyttsx3
+mcp
 
 
 

@@ -28,24 +28,121 @@
         <section id="view-dashboard" class="view active">
             <header>
                 <h1>Dashboard</h1>
-                <p>Today's Digital Footprint.</p>
+                <p>Cognitive Core System Status</p>
             </header>
-            <div class="metrics-grid">
-                <div class="metric-card glass-panel">
-                    <h3>Total Events Logged</h3>
-                    <p class="metric-value" id="stat-total-events">0</p>
+            
+            <div class="dashboard-layout">
+                <!-- Glowing Core SVG Network -->
+                <div class="network-container glass-panel">
+                    <svg viewBox="0 0 600 500" class="core-network-svg">
+                        <defs>
+                            <!-- Radial Gradients for core and nodes -->
+                            <radialGradient id="coreGradient" cx="50%" cy="50%" r="50%">
+                                <stop offset="0%" stop-color="#022c22" />
+                                <stop offset="100%" stop-color="#040814" />
+                            </radialGradient>
+                            
+                            <!-- Shadow filter for glows -->
+                            <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+                                <feGaussianBlur stdDeviation="6" result="blur" />
+                                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                            </filter>
+                        </defs>
+
+                        <!-- Circuit Connection Lines -->
+                        <g class="connection-lines">
+                            <!-- Timeline -->
+                            <path class="circuit-line" d="M 300 250 L 300 70" />
+                            <path class="circuit-pulse pulse-timeline" d="M 300 250 L 300 70" />
+
+                            <!-- AI Chats -->
+                            <path class="circuit-line" d="M 300 250 L 390 250 L 471 194" />
+                            <path class="circuit-pulse pulse-chats" d="M 300 250 L 390 250 L 471 194" />
+
+                            <!-- Tasks -->
+                            <path class="circuit-line" d="M 300 250 L 340 330 L 406 396" />
+                            <path class="circuit-pulse pulse-tasks" d="M 300 250 L 340 330 L 406 396" />
+
+                            <!-- Skills -->
+                            <path class="circuit-line" d="M 300 250 L 260 330 L 194 396" />
+                            <path class="circuit-pulse pulse-skills" d="M 300 250 L 260 330 L 194 396" />
+
+                            <!-- Settings -->
+                            <path class="circuit-line" d="M 300 250 L 210 250 L 129 194" />
+                            <path class="circuit-pulse pulse-settings" d="M 300 250 L 210 250 L 129 194" />
+                        </g>
+
+                        <!-- Central Cognitive Core -->
+                        <g class="central-core">
+                            <circle class="core-glow" cx="300" cy="250" r="45" fill="rgba(0, 242, 254, 0.15)" />
+                            <circle class="core-outer-ring" cx="300" cy="250" r="45" fill="none" stroke="var(--color-core)" stroke-width="2" />
+                            <circle cx="300" cy="250" r="32" fill="url(#coreGradient)" stroke="var(--color-core)" stroke-width="1.5" />
+                            <text x="300" y="254" text-anchor="middle" font-family="'Orbitron'" font-size="10" fill="#ffffff" font-weight="800" letter-spacing="1">BRAIN</text>
+                        </g>
+
+                        <!-- Surrounding Nodes -->
+                        <!-- Timeline Node -->
+                        <g class="network-node node-timeline" id="node-timeline">
+                            <circle cx="300" cy="70" r="20" fill="rgba(4, 8, 20, 0.8)" stroke="var(--color-timeline)" stroke-width="1.5" />
+                            <circle cx="300" cy="70" r="14" fill="rgba(0, 0, 0, 0.5)" stroke="var(--color-timeline)" stroke-width="1.2" />
+                            <path d="M 300 64 L 300 70 L 304 73" stroke="var(--color-timeline)" stroke-width="1.5" stroke-linecap="round" fill="none" />
+                            <text x="300" y="42" text-anchor="middle">TIMELINE</text>
+                        </g>
+
+                        <!-- AI Chats Node -->
+                        <g class="network-node node-chats" id="node-chats">
+                            <circle cx="471" cy="194" r="20" fill="rgba(4, 8, 20, 0.8)" stroke="var(--color-chats)" stroke-width="1.5" />
+                            <circle cx="471" cy="194" r="14" fill="rgba(0, 0, 0, 0.5)" stroke="var(--color-chats)" stroke-width="1.2" />
+                            <rect x="465" y="189" width="12" height="9" rx="2" fill="none" stroke="var(--color-chats)" stroke-width="1.2" />
+                            <path d="M 468 198 L 466 201 L 471 198" fill="var(--color-chats)" />
+                            <text x="525" y="198" text-anchor="start">CHATS</text>
+                        </g>
+
+                        <!-- Tasks Node -->
+                        <g class="network-node node-tasks" id="node-tasks">
+                            <circle cx="406" cy="396" r="20" fill="rgba(4, 8, 20, 0.8)" stroke="var(--color-tasks)" stroke-width="1.5" />
+                            <circle cx="406" cy="396" r="14" fill="rgba(0, 0, 0, 0.5)" stroke="var(--color-tasks)" stroke-width="1.2" />
+                            <path d="M 400 392 L 412 392 M 400 396 L 412 396 M 400 400 L 412 400" stroke="var(--color-tasks)" stroke-width="1.5" stroke-linecap="round" />
+                            <text x="406" y="434" text-anchor="middle">TASKS</text>
+                        </g>
+
+                        <!-- Skills Node -->
+                        <g class="network-node node-skills" id="node-skills">
+                            <circle cx="194" cy="396" r="20" fill="rgba(4, 8, 20, 0.8)" stroke="var(--color-skills)" stroke-width="1.5" />
+                            <circle cx="194" cy="396" r="14" fill="rgba(0, 0, 0, 0.5)" stroke="var(--color-skills)" stroke-width="1.2" />
+                            <path d="M 194 388 L 189 397 L 194 397 L 194 404 L 199 395 L 194 395 Z" fill="var(--color-skills)" stroke="var(--color-skills)" stroke-width="0.5" />
+                            <text x="194" y="434" text-anchor="middle">SKILLS</text>
+                        </g>
+
+                        <!-- Settings Node -->
+                        <g class="network-node node-settings" id="node-settings">
+                            <circle cx="129" cy="194" r="20" fill="rgba(4, 8, 20, 0.8)" stroke="var(--color-settings)" stroke-width="1.5" />
+                            <circle cx="129" cy="194" r="14" fill="rgba(0, 0, 0, 0.5)" stroke="var(--color-settings)" stroke-width="1.2" />
+                            <circle cx="129" cy="194" r="4" fill="none" stroke="var(--color-settings)" stroke-width="1.5" />
+                            <path d="M 129 187 L 129 190 M 129 198 L 129 201 M 122 194 L 125 194 M 133 194 L 136 194" stroke="var(--color-settings)" stroke-width="1.5" stroke-linecap="round" />
+                            <text x="75" y="198" text-anchor="end">SETTINGS</text>
+                        </g>
+                    </svg>
                 </div>
-                <div class="metric-card glass-panel">
-                    <h3>Times Gone Idle</h3>
-                    <p class="metric-value" id="stat-idle-count">0</p>
-                </div>
-                <div class="metric-card glass-panel">
-                    <h3>Top App Used</h3>
-                    <p class="metric-value stat-small" id="stat-top-app">-</p>
-                </div>
-                <div class="metric-card glass-panel">
-                    <h3>Top File Touched</h3>
-                    <p class="metric-value stat-small" id="stat-top-file">-</p>
+
+                <!-- Stats Sidebar -->
+                <div class="dashboard-metrics-sidebar">
+                    <div class="metric-card glass-panel">
+                        <h3>Total Events Logged</h3>
+                        <p class="metric-value" id="stat-total-events">0</p>
+                    </div>
+                    <div class="metric-card glass-panel">
+                        <h3>Times Gone Idle</h3>
+                        <p class="metric-value" id="stat-idle-count">0</p>
+                    </div>
+                    <div class="metric-card glass-panel">
+                        <h3>Top App Used</h3>
+                        <p class="metric-value stat-small" id="stat-top-app">-</p>
+                    </div>
+                    <div class="metric-card glass-panel">
+                        <h3>Top File Touched</h3>
+                        <p class="metric-value stat-small" id="stat-top-file">-</p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -92,9 +189,18 @@
         <!-- Skills View -->
         <section id="view-skills" class="view">
             <header>
-                <h1>Action Engine Skills</h1>
-                <p>Manually trigger Specter capabilities.</p>
+                <h1>Interactive Tool Center</h1>
+                <p>Execute and manage specialized system and social automation tools.</p>
             </header>
+            
+            <!-- Tool Category Navigation -->
+            <div class="tool-category-nav">
+                <button class="filter-btn active" data-category="all">All Tools</button>
+                <button class="filter-btn" data-category="social">Social Engine</button>
+                <button class="filter-btn" data-category="dev">Dev & DevOps</button>
+                <button class="filter-btn" data-category="utility">Utilities</button>
+            </div>
+            
             <div class="skills-grid" id="skills-container">
                 <!-- Skills populated by JS -->
             </div>
@@ -131,7 +237,13 @@
             <div class="modal-content glass-panel">
                 <div class="modal-header">
                     <h2 id="modal-chat-topic">Conversation</h2>
-                    <button id="modal-close" class="btn-primary" style="background: #e74c3c; padding: 5px 10px;">Close</button>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button id="modal-speak-btn" class="btn-primary" style="background: rgba(0, 242, 254, 0.08); border: 1px solid var(--primary-color); padding: 5px 12px; display: flex; align-items: center; gap: 6px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                            Read Chat
+                        </button>
+                        <button id="modal-close" class="btn-primary" style="background: #e74c3c; padding: 5px 10px;">Close</button>
+                    </div>
                 </div>
                 <div class="modal-body" id="modal-chat-body">
                     <!-- Formatted chat bubbles populated by JS -->

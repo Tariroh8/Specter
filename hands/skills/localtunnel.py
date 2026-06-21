@@ -22,12 +22,20 @@ class LocalServerTunnelerSkill(BaseSkill):
         port = str(kwargs.get("port", "5000"))
         subdomain = kwargs.get("subdomain", "").strip()
         
+        def speak_msg(text):
+            try:
+                from hands.skills.audia import speak
+                speak(text)
+            except Exception:
+                pass
+        
         if action == "stop":
             if port in _TUNNEL_PROCESSES:
                 proc = _TUNNEL_PROCESSES[port]
                 if proc.poll() is None:
                     proc.terminate()
                 del _TUNNEL_PROCESSES[port]
+                speak_msg(f"Stopped tunnel on port {port}.")
                 return {"success": True, "message": f"Successfully stopped the local tunnel on port {port}."}
             elif not kwargs.get("port"):
                 # If no port provided, stop all
@@ -37,6 +45,7 @@ class LocalServerTunnelerSkill(BaseSkill):
                         proc.terminate()
                     del _TUNNEL_PROCESSES[p]
                     stopped += 1
+                speak_msg(f"Stopped {stopped} active tunnels.")
                 return {"success": True, "message": f"Successfully stopped {stopped} active tunnels."}
             else:
                 return {"success": True, "message": f"No active tunnel was running on port {port}."}
@@ -82,9 +91,11 @@ class LocalServerTunnelerSkill(BaseSkill):
                 line = proc.stdout.readline()
                 if "your url is:" in line:
                     url = line.split("your url is:")[1].strip()
+                    speak_msg(f"Localtunnel is active on port {port}!")
                     # Return formatted discord hyperlink
                     return {"success": True, "message": f"Successfully started tunnel on port {port}. **[🔗 Click here to open]({url})**"}
                 else:
+                    speak_msg(f"Tunnel started on port {port}.")
                     return {"success": True, "message": f"Started tunnel on port {port}, but could not parse the URL. Output was: {line}"}
                     
             except Exception as e:

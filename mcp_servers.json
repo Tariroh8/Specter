@@ -1,0 +1,14 @@
+{
+  "_comment": "MCP servers Specter connects to on startup. Each tool a server exposes becomes a skill named mcp_<server>_<tool>. Use ${PYTHON} as the command to mean this project's venv python. On Windows, npx/uvx-based servers usually need command 'cmd' with args ['/c', 'npx', '-y', '<package>'].",
+  "mcpServers": {
+    "echo": {
+      "command": "${PYTHON}",
+      "args": ["-m", "hands.mcp.echo_server"]
+    },
+
+    "filesystem": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-filesystem", "C:\\Users\\Admin\\Documents\\code"]
+    }
+  }
+}
